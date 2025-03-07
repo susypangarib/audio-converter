@@ -57,3 +57,6 @@ ffmpeg-6.1.zip
 application.properties
 application.yml
 application-*.yml
+
+# ... other ignored files and directories ...
+audio_converter_key.json

@@ -9,8 +9,8 @@ import java.io.IOException;
 
 public interface AudioService {
     Boolean save(AudioRequest request);
-    Resource get(String phraseId, String userId, String format);
+    Resource get(String userID, String phraseId, String format);
 
-    String retrieveAudioFormat(File file) throws IOException ;
+    Boolean retrieveAudioFormat(File file) throws IOException ;
 
 }

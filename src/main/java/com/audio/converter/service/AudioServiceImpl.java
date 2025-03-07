@@ -19,7 +19,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -42,10 +42,10 @@ public class AudioServiceImpl implements AudioService {
 
     @Override
     public Boolean save(AudioRequest request) {
-        validateRequest(request.getPhraseId(), request.getUserId());
+        validateRequest(request.getUserId(), request.getPhraseId());
 
-        Audio audio = audioRepository.findByUserIdAndPhraseAndDeletedAtIsNull(request.getPhraseId(), request.getUserId());
-        if (audio != null) {
+        Audio audio = audioRepository.findByUserIdAndPhraseAndDeletedAtIsNull(request.getUserId(), request.getPhraseId());
+        if (Objects.nonNull(audio)) {
             throw new RequestValidationException(ResponseCode.AUDIO_ALREADY_EXIST.getCode(), ResponseCode.AUDIO_ALREADY_EXIST.getMessage());
         }
 
@@ -64,7 +64,7 @@ public class AudioServiceImpl implements AudioService {
             request.getFile().delete();
             outputFile.delete();
         } catch (Exception e) {
-            log.info("Fail to Upload the file", e.getMessage());
+            log.error("Fail to Upload the file", e.getMessage());
             throw new BusinessLogicException(ResponseCode.UPLOAD_FAILED.getCode(), ResponseCode.UPLOAD_FAILED.getMessage());
         }
         audioRepository.save(Audio.builder()
@@ -81,7 +81,7 @@ public class AudioServiceImpl implements AudioService {
         return true;
     }
 
-    private void validateRequest(String phraseId, String userId) {
+    private void validateRequest(String userId, String phraseId) {
         userRepository.findById(userId).orElseThrow(() ->
                 new RequestValidationException(ResponseCode.USER_NOT_EXIST.getCode(), ResponseCode.USER_NOT_EXIST.getMessage()));
         phraseRepository.findById(phraseId).orElseThrow(() ->
@@ -89,19 +89,18 @@ public class AudioServiceImpl implements AudioService {
     }
 
     @Override
-    public Resource get(String phraseId, String userId, String format) {
+    public Resource get(String userId, String phraseId, String format) {
 
-        validateRequest(phraseId, userId);
+        validateRequest(userId, phraseId);
         Audio audio = audioRepository.findByUserIdAndPhraseAndDeletedAtIsNull(userId, phraseId);
-        Optional.of(audio)
-                .orElseThrow(() -> new RequestValidationException(ResponseCode.AUDIO_NOT_EXIST.getCode(), ResponseCode.AUDIO_NOT_EXIST.getMessage()));
-        // if exist -> retrieve from server by path
 
-        // then convert to targeted format
-        // then return to user
+        if(Objects.isNull(audio)){
+            throw new RequestValidationException(ResponseCode.AUDIO_NOT_EXIST.getCode(), ResponseCode.AUDIO_NOT_EXIST.getMessage());
+        }
+
+        // If path exist in db, retrieve from server and convert to requested format.
         Resource file;
         try {
-            //File downloadedFile = gcpService.downloadFile("converted-audio/sample.wav", "/tmp/sample.wav");
             file = gcpService.getFileBytes(audio.getPath());
             if (format.equals(Format.M4A.getValue())) {
                 file = convertWAVToM4A(file);
@@ -109,38 +108,55 @@ public class AudioServiceImpl implements AudioService {
                 file = convertWavToMp3(file);
             }
         } catch (IOException e) {
-            log.info("Error ", e.getMessage());
-            throw new RuntimeException(e);
+            log.error("Failed to retrieve or process file: path={}, error={}", audio.getPath(), e.getMessage(), e);
+            throw new BusinessLogicException(ResponseCode.RETRIEVE_FAILED.getCode(), ResponseCode.RETRIEVE_FAILED.getMessage());
         } catch (InterruptedException e) {
-            log.info("Error ", e.getMessage());
-            throw new RuntimeException(e);
+            log.error("File conversion interrupted: path={}, error={}", audio.getPath(), e.getMessage(), e);
+            throw new BusinessLogicException(ResponseCode.CONVERSION_FAILED.getCode(), ResponseCode.CONVERSION_FAILED.getMessage());
         }
 
         return file;
     }
 
     @Override
-    public String retrieveAudioFormat(File file) {
-        ProcessBuilder processBuilder = new ProcessBuilder(
-                "ffprobe",
-                "-v", "error",
-                "-show_entries", "format=format_name",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                file.getAbsolutePath()
-        );
-
-        Process process = null;
+    public Boolean retrieveAudioFormat(File file) {
         try {
-            process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            return reader.readLine(); // Returns format (e.g., "mp4", "m4a", "wav")
-        } catch (IOException e) {
-            log.info("error retrieve audio format", e.getMessage());
-            throw new RuntimeException(e);
+            // Command to analyze the file using FFmpeg
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    "/usr/local/bin/ffmpeg", // Path to FFmpeg
+                    "-i", file.getAbsolutePath(),         // Input file
+                    "-f", "null",           // No output file
+                    "-"                     // Redirect output to stdout
+            );
+
+            // Start the process
+            Process process = processBuilder.start();
+
+            // Read the output (error stream, as FFmpeg outputs info to stderr)
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+            StringBuilder output = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+
+            // Wait for the process to complete
+            int exitCode = process.waitFor();
+            // Check if the output contains the M4A format
+            String outputStr = output.toString().toLowerCase();
+            boolean isM4aContainer = outputStr.contains("input #0, mov,mp4,m4a,3gp,3g2,mj2");
+            boolean isAacCodec = outputStr.contains("audio: aac");
+
+            // Return true if both conditions are met
+            return isM4aContainer && isAacCodec;
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+            return false; // If an error occurs, assume the file is not valid
         }
+
     }
 
-    private void convertM4AToWAV(String inputPath, String outputPath) throws IOException {
+    private void convertM4AToWAV(String inputPath, String outputPath) throws IOException, InterruptedException {
         // Run FFmpeg command
         ProcessBuilder builder = new ProcessBuilder(
                 FFMPEG_PATH, "-i", inputPath, "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", outputPath);
@@ -148,14 +164,10 @@ public class AudioServiceImpl implements AudioService {
         builder.redirectErrorStream(true);
         Process process = builder.start();
 
-        try {
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new IOException("FFmpeg conversion failed.");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Conversion process interrupted", e);
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            log.error("FFmpeg conversion failed with exit code {}", exitCode);
+            throw new BusinessLogicException(ResponseCode.CONVERSION_FAILED.getCode(), "FFmpeg conversion failed.");
         }
     }
 
@@ -171,30 +183,24 @@ public class AudioServiceImpl implements AudioService {
 
         // Run FFmpeg command
         ProcessBuilder builder = new ProcessBuilder(
-                FFMPEG_PATH, "-i", tempInputFile.getAbsolutePath(),
+                FFMPEG_PATH, "-y", "-i", tempInputFile.getAbsolutePath(),
                 "-c:a", "aac", "-b:a", "192k", tempOutputFile.getAbsolutePath()
         );
 
         builder.redirectErrorStream(true);
         Process process = builder.start();
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println(line);
-            }
-        }
-
         int exitCode = process.waitFor();
         if (exitCode != 0) {
-            throw new IOException("FFmpeg conversion failed.");
+            log.error("FFmpeg conversion failed with exit code {}", exitCode);
+            throw new BusinessLogicException(ResponseCode.CONVERSION_FAILED.getCode(), "FFmpeg conversion failed.");
         }
 
         // Read output file into ByteArrayResource
         byte[] fileBytes = Files.readAllBytes(tempOutputFile.toPath());
         Resource outputResource = new ByteArrayResource(fileBytes);
 
-        // Clean up temp files
+        // Delete temp files after reading
         tempInputFile.delete();
         tempOutputFile.delete();
 
@@ -223,7 +229,8 @@ public class AudioServiceImpl implements AudioService {
         inputFile.delete();
 
         if (exitCode != 0) {
-            throw new IOException("FFmpeg conversion failed.");
+            log.error("FFmpeg conversion failed with exit code {}", exitCode);
+            throw new BusinessLogicException(ResponseCode.CONVERSION_FAILED.getCode(), "FFmpeg conversion failed.");
         }
 
         // Return the MP3 file as a Resource

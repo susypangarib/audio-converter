@@ -5,6 +5,7 @@ import com.audio.converter.model.BaseResponse;
 import com.audio.converter.model.Format;
 import com.audio.converter.model.ResponseCode;
 import com.audio.converter.service.AudioService;
+import com.audio.converter.util.RequestValidationException;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
@@ -35,11 +36,14 @@ public class AudioController {
             @RequestPart("file") MultipartFile file) throws IOException {
 
         File tempFile = File.createTempFile("upload_".concat(UUID.randomUUID().toString()), "_" + file.getOriginalFilename());
-
         // Write the uploaded file content to tempFile
         try (FileOutputStream fos = new FileOutputStream(tempFile)) {
             fos.write(file.getBytes());
             fos.flush();
+        }
+
+        if (!audioService.retrieveAudioFormat(tempFile)){
+            throw new RequestValidationException(ResponseCode.FORMAT_INVALID.getCode(), ResponseCode.FORMAT_INVALID.getMessage());
         }
 
         audioService.save(AudioRequest.builder()
@@ -60,7 +64,7 @@ public class AudioController {
             @PathVariable @NotBlank String userId,
             @PathVariable @NotBlank String phraseId,
             @PathVariable @NotBlank String audioFormat) {
-
+        Format.fromValue(audioFormat).orElseThrow(() -> new RequestValidationException(ResponseCode.FORMAT_INVALID.getCode(), ResponseCode.FORMAT_INVALID.getMessage()));
         Resource audio = audioService.get(userId, phraseId, audioFormat);
         String fileName = userId.concat("_").concat(phraseId).concat(".").concat(audioFormat);
         return ResponseEntity.ok()
