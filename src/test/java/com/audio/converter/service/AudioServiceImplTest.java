@@ -31,7 +31,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 
-import static org.assertj.core.api.Fail.fail;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -120,15 +119,34 @@ public class AudioServiceImplTest {
 
        assertTrue(file.exists());
         request.setFile(file);
+        when(audioRepository.save(any(Audio.class))).thenReturn(Audio.builder().build());
+        boolean result = audioService.save(request);
+        assertTrue(result);
+        verify(audioRepository, times(1)).save(any(Audio.class));
+    }
 
-        try {
-            boolean result = audioService.save(request);
-            assertTrue(result);
-            verify(audioRepository, times(1)).save(any(Audio.class));
-        } catch (Exception e) {
-            e.printStackTrace();
-            fail("Unexpected exception occurred: " + e.getMessage());
-        }
+    @Test(expected = BusinessLogicException.class)
+    public void testSave_ValidRequest_FailedSaveAudio() throws Exception {
+        when(userRepository.findById(anyString())).thenReturn(Optional.of(user));
+        when(phraseRepository.findById(anyString())).thenReturn(Optional.of(phrase));
+
+        // Ensure uploadFile() is correctly mocked
+        doReturn("gcs_url").when(gcpService).uploadFile(any(File.class));
+
+        Path originalPath = Paths.get(getClass().getClassLoader().getResource("test-audio.m4a").toURI());
+        Path tempFile = Files.createTempFile("test-audio-copy", ".m4a");
+        Files.copy(originalPath, tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+        File file = tempFile.toFile();
+
+        AudioRequest audio = request;
+        audio.setFile(file);
+
+        assertTrue(file.exists());
+        request.setFile(file);
+        when(audioRepository.save(any(Audio.class))).thenThrow(new IllegalArgumentException("error"));
+        boolean result = audioService.save(request);
+        verify(audioRepository, times(1)).save(any(Audio.class));
     }
 
 
@@ -232,5 +250,37 @@ public class AudioServiceImplTest {
         tempFile.delete();
 
         assertFalse(result);
+    }
+
+    @Test(expected = BusinessLogicException.class)
+    public void testGet_fail_M4aFormat() throws IOException {
+        Resource emptyResource = new ByteArrayResource(new byte[0]);
+        when(userRepository.findById(anyString())).thenReturn(Optional.of(user));
+        when(phraseRepository.findById(anyString())).thenReturn(Optional.of(phrase));
+        when(audioRepository.findByUserIdAndPhraseAndDeletedAtIsNull(request.getUserId(), request.getPhraseId())).thenReturn(audio);
+        when(gcpService.getFileBytes(anyString())).thenReturn(emptyResource);
+
+        audioService.get(request.getUserId(), request.getPhraseId(), Format.M4A.getValue());
+    }
+
+    @Test(expected = BusinessLogicException.class)
+    public void testGet_Fail_Mp3Format() throws IOException {
+        Resource emptyResource = new ByteArrayResource(new byte[0]);
+        when(userRepository.findById(anyString())).thenReturn(Optional.of(user));
+        when(phraseRepository.findById(anyString())).thenReturn(Optional.of(phrase));
+        when(audioRepository.findByUserIdAndPhraseAndDeletedAtIsNull(request.getUserId(), request.getPhraseId())).thenReturn(audio);
+        when(gcpService.getFileBytes(anyString())).thenReturn(emptyResource);
+
+        audioService.get(request.getUserId(), request.getPhraseId(), Format.MP3.getValue());
+    }
+
+    @Test(expected = BusinessLogicException.class)
+    public void testGet_FailIOException_Mp3Format() throws IOException {
+        when(userRepository.findById(anyString())).thenReturn(Optional.of(user));
+        when(phraseRepository.findById(anyString())).thenReturn(Optional.of(phrase));
+        when(audioRepository.findByUserIdAndPhraseAndDeletedAtIsNull(request.getUserId(), request.getPhraseId())).thenReturn(audio);
+        when(gcpService.getFileBytes(anyString())).thenThrow(new IOException("error"));
+
+        audioService.get(request.getUserId(), request.getPhraseId(), Format.MP3.getValue());
     }
 }

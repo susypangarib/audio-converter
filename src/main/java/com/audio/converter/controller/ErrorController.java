@@ -10,10 +10,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -40,6 +42,13 @@ public class ErrorController {
                 .body(constructBaseResponse(ex.getCode(),ex.getMessage()));
     }
 
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<BaseResponse> handleRuntimeException(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(constructBaseResponse(ResponseCode.SYSTEM_ERROR.getCode(), ResponseCode.SYSTEM_ERROR.getMessage()));
+    }
+
+
     @ExceptionHandler(RequestValidationException.class)
     public ResponseEntity<BaseResponse> handleBusinessLogicException(RequestValidationException ex) {
         return ResponseEntity.badRequest()
@@ -50,6 +59,16 @@ public class ErrorController {
     public ResponseEntity<BaseResponse> handleIOException(IOException ex) {
         return ResponseEntity.badRequest()
                 .body(constructBaseResponse(ResponseCode.CONVERSION_FAILED.getCode(),ex.getMessage()));
+    }
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<?> handleMaxSizeException(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(constructBaseResponse(ResponseCode.FILE_SIZE_EXCEEDED.getCode(), ResponseCode.FILE_SIZE_EXCEEDED.getMessage()));
+    }
+    @ExceptionHandler(SocketTimeoutException.class)
+    public ResponseEntity<BaseResponse> handleSocketTimeoutException(SocketTimeoutException ex) {
+        return ResponseEntity.badRequest()
+                .body(constructBaseResponse(ResponseCode.CANNOT_CONNECT_TO_GCP.getCode(),ex.getMessage()));
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)

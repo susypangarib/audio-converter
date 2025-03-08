@@ -38,8 +38,8 @@ public class AudioServiceImpl implements AudioService {
     @Autowired
     private GCPService gcpService;
 
-    //private static final String FFMPEG_PATH = "/usr/local/bin/ffmpeg";
-    private static final String FFMPEG_PATH = "/usr/bin/ffmpeg";
+    private static final String FFMPEG_PATH = "/usr/local/bin/ffmpeg";
+    //private static final String FFMPEG_PATH = "/usr/bin/ffmpeg";
 
     @Override
     public Boolean save(AudioRequest request) {
@@ -51,24 +51,23 @@ public class AudioServiceImpl implements AudioService {
         }
 
         //convert from m4a to wav
+        File outputFile = null;
         String gcsUrl = "";
         try {
-
             // Convert M4A to WAV
-            File outputFile = new File(request.getFile().getParent(), UUID.randomUUID() + ".wav");
+            outputFile = new File(request.getFile().getParent(), UUID.randomUUID() + ".wav");
             convertM4AToWAV(request.getFile().getAbsolutePath(), outputFile.getAbsolutePath());
-
             // Upload to GCS
             gcsUrl = gcpService.uploadFile(outputFile);
-
+        } catch (Exception e) {
+            log.error("Fail to Upload the file", e);
+            throw new BusinessLogicException(ResponseCode.UPLOAD_FAILED.getCode(), ResponseCode.UPLOAD_FAILED.getMessage());
+        } finally {
             // Clean up temp files
             request.getFile().delete();
             outputFile.delete();
-        } catch (Exception e) {
-            log.error("Fail to Upload the file", e.getMessage());
-            throw new BusinessLogicException(ResponseCode.UPLOAD_FAILED.getCode(), ResponseCode.UPLOAD_FAILED.getMessage());
         }
-        audioRepository.save(Audio.builder()
+        try{ audioRepository.save(Audio.builder()
                 .path(gcsUrl)
                 .updatedBy(request.getUserId())
                 .createdBy(request.getUserId())
@@ -79,6 +78,11 @@ public class AudioServiceImpl implements AudioService {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build());
+
+        }catch (Exception e){
+            log.error("Fail to save Audio to repository {}", e);
+            throw new BusinessLogicException(ResponseCode.UPLOAD_FAILED.getCode(), ResponseCode.UPLOAD_FAILED.getMessage());
+        }
         return true;
     }
 
@@ -95,7 +99,7 @@ public class AudioServiceImpl implements AudioService {
         validateRequest(userId, phraseId);
         Audio audio = audioRepository.findByUserIdAndPhraseAndDeletedAtIsNull(userId, phraseId);
 
-        if(Objects.isNull(audio)){
+        if (Objects.isNull(audio)) {
             throw new RequestValidationException(ResponseCode.AUDIO_NOT_EXIST.getCode(), ResponseCode.AUDIO_NOT_EXIST.getMessage());
         }
 
@@ -109,10 +113,10 @@ public class AudioServiceImpl implements AudioService {
                 file = convertWavToMp3(file);
             }
         } catch (IOException e) {
-            log.error("Failed to retrieve or process file: path={}, error={}", audio.getPath(), e.getMessage(), e);
+            log.error("Failed to retrieve or process file: path={}, error={}", audio.getPath(), e);
             throw new BusinessLogicException(ResponseCode.RETRIEVE_FAILED.getCode(), ResponseCode.RETRIEVE_FAILED.getMessage());
         } catch (InterruptedException e) {
-            log.error("File conversion interrupted: path={}, error={}", audio.getPath(), e.getMessage(), e);
+            log.error("File conversion interrupted: path={}, error={}", audio.getPath(), e);
             throw new BusinessLogicException(ResponseCode.CONVERSION_FAILED.getCode(), ResponseCode.CONVERSION_FAILED.getMessage());
         }
 
@@ -142,7 +146,7 @@ public class AudioServiceImpl implements AudioService {
             }
 
             // Wait for the process to complete
-           process.waitFor();
+            process.waitFor();
             // Check if the output contains the M4A format
             String outputStr = output.toString().toLowerCase();
             boolean isM4aContainer = outputStr.contains("input #0, mov,mp4,m4a,3gp,3g2,mj2");
@@ -151,7 +155,7 @@ public class AudioServiceImpl implements AudioService {
             // Return true if both conditions are met
             return isM4aContainer && isAacCodec;
         } catch (IOException | InterruptedException e) {
-            log.error("FFmpeg reda failed {}", e.getMessage());
+            log.error("FFmpeg reda failed {}", e);
 
             // If an error occurs, assume the file is not valid
             return false;

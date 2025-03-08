@@ -12,10 +12,12 @@ import org.mockito.InjectMocks;
 import org.mockito.MockitoAnnotations;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.Set;
 
@@ -111,5 +113,43 @@ class ErrorControllerTest {
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertEquals(ResponseCode.BIND_ERROR.getCode(), response.getBody().getCode());
         assertEquals(ex.getMessage(), response.getBody().getMessage());
+    }
+
+    @Test
+    void testHandleMaxSizeException() {
+        MaxUploadSizeExceededException ex = new MaxUploadSizeExceededException(50_000_000);
+
+        ResponseEntity<?> response = errorController.handleMaxSizeException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
+        assertTrue(response.getBody() instanceof BaseResponse);
+
+        BaseResponse baseResponse = (BaseResponse) response.getBody();
+        assertEquals(ResponseCode.FILE_SIZE_EXCEEDED.getCode(), baseResponse.getCode());
+        assertEquals(ResponseCode.FILE_SIZE_EXCEEDED.getMessage(), baseResponse.getMessage());
+    }
+
+    @Test
+    void testHandleSocketTimeoutException() {
+        String errorMessage = "Connection timed out";
+        SocketTimeoutException ex = new SocketTimeoutException(errorMessage);
+
+        ResponseEntity<BaseResponse> response = errorController.handleSocketTimeoutException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(ResponseCode.CANNOT_CONNECT_TO_GCP.getCode(), response.getBody().getCode());
+        assertEquals(errorMessage, response.getBody().getMessage());
+    }
+
+    @Test
+    void testHandleRuntimeException() {
+        RuntimeException ex = new RuntimeException("Unexpected error occurred");
+        ResponseEntity<BaseResponse> response = errorController.handleRuntimeException(ex);
+        assertNotNull(response);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(ResponseCode.SYSTEM_ERROR.getCode(), response.getBody().getCode());
+        assertEquals(ResponseCode.SYSTEM_ERROR.getMessage(), response.getBody().getMessage());
     }
 }

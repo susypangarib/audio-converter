@@ -17,9 +17,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.UUID;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 @RestController
 @RequestMapping("/audio")
@@ -35,12 +35,13 @@ public class AudioController {
             @PathVariable @NotBlank String phraseId,
             @RequestPart("file") MultipartFile file) throws IOException {
 
-        File tempFile = File.createTempFile("upload_".concat(UUID.randomUUID().toString()), "_" + file.getOriginalFilename());
-        // Write the uploaded file content to tempFile
-        try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-            fos.write(file.getBytes());
-            fos.flush();
+        if (file.isEmpty()) {
+            throw new RequestValidationException(ResponseCode.BIND_ERROR.getCode(), "Uploaded file is empty");
         }
+
+        Path tempFilePath = Files.createTempFile("upload_", "_" + file.getOriginalFilename());
+        File tempFile = tempFilePath.toFile();
+        Files.write(tempFilePath, file.getBytes());
 
         if (!audioService.retrieveAudioFormat(tempFile)){
             throw new RequestValidationException(ResponseCode.FORMAT_INVALID.getCode(), ResponseCode.FORMAT_INVALID.getMessage());
@@ -52,6 +53,9 @@ public class AudioController {
                 .phraseId(phraseId)
                 .file(tempFile)
                 .build());
+
+        // Mark for deletion after processing
+        Files.deleteIfExists(tempFilePath);
 
         return ResponseEntity.ok().body(BaseResponse.builder()
                 .code(ResponseCode.SUCCESS.getCode())

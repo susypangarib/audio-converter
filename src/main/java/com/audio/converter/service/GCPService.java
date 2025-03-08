@@ -2,8 +2,10 @@ package com.audio.converter.service;
 
 import com.audio.converter.model.ResponseCode;
 import com.audio.converter.util.BusinessLogicException;
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.storage.*;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -28,13 +30,6 @@ public class GCPService {
 
     public GCPService(Storage storage) {
         this.storage = storage;
-    }
-
-    public GCPService() throws IOException {
-        storage = StorageOptions.newBuilder()
-                .setCredentials(GoogleCredentials.getApplicationDefault())
-                .build()
-                .getService();
     }
 
     public String uploadFile(File file) throws IOException {
