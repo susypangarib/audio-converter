@@ -11,6 +11,7 @@ import com.audio.converter.util.BusinessLogicException;
 import com.audio.converter.util.RequestValidationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -37,9 +38,8 @@ public class AudioServiceImpl implements AudioService {
 
     @Autowired
     private GCPService gcpService;
-
-    private static final String FFMPEG_PATH = "/usr/local/bin/ffmpeg";
-    //private static final String FFMPEG_PATH = "/usr/bin/ffmpeg";
+    @Value("${ffmpeg.path}")
+    private String ffmpegPath;
 
     @Override
     public Boolean save(AudioRequest request) {
@@ -128,7 +128,7 @@ public class AudioServiceImpl implements AudioService {
         try {
             // Command to analyze the file using FFmpeg
             ProcessBuilder processBuilder = new ProcessBuilder(
-                    FFMPEG_PATH,
+                    ffmpegPath,
                     "-i", file.getAbsolutePath(),
                     "-f", "null",
                     "-"
@@ -166,7 +166,7 @@ public class AudioServiceImpl implements AudioService {
     private void convertM4AToWAV(String inputPath, String outputPath) throws IOException, InterruptedException {
         // Run FFmpeg command
         ProcessBuilder builder = new ProcessBuilder(
-                FFMPEG_PATH, "-i", inputPath, "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", outputPath);
+                ffmpegPath, "-i", inputPath, "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", outputPath);
 
         builder.redirectErrorStream(true);
         Process process = builder.start();
@@ -190,7 +190,7 @@ public class AudioServiceImpl implements AudioService {
 
         // Run FFmpeg command
         ProcessBuilder builder = new ProcessBuilder(
-                FFMPEG_PATH, "-y", "-i", tempInputFile.getAbsolutePath(),
+                ffmpegPath, "-y", "-i", tempInputFile.getAbsolutePath(),
                 "-c:a", "aac", "-b:a", "192k", tempOutputFile.getAbsolutePath()
         );
 
@@ -224,7 +224,7 @@ public class AudioServiceImpl implements AudioService {
 
         // Run FFmpeg conversion
         ProcessBuilder builder = new ProcessBuilder(
-                FFMPEG_PATH, "-i", inputFile.getAbsolutePath(),
+                ffmpegPath, "-i", inputFile.getAbsolutePath(),
                 "-codec:a", "libmp3lame", "-b:a", "192k", outputFile.getAbsolutePath()
         );
 

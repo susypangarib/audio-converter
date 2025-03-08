@@ -12,6 +12,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgrespw
       GOOGLE_APPLICATION_CREDENTIALS: /app/audio_converter_key.json
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      FFMPEG_PATH: /usr/bin/ffmpeg
     volumes:
           - ./audio_converter_key.json:/app/audio_converter_key.json
   db:

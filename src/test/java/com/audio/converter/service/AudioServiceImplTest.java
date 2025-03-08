@@ -53,8 +53,13 @@ public class AudioServiceImplTest {
     private GCPService gcpService;
 
     @Before
-    public void setUp() {
+    public void setUp() throws NoSuchFieldException, IllegalAccessException {
         MockitoAnnotations.initMocks(this);
+        // Inject mocked storage object
+        java.lang.reflect.Field ffmpegPath = AudioServiceImpl.class.getDeclaredField("ffmpegPath");
+        ffmpegPath.setAccessible(true);
+        ffmpegPath.set(audioService, "/usr/local/bin/ffmpeg");
+
     }
 
     private User user = User.builder()
