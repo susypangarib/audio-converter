@@ -65,7 +65,7 @@ public class AudioServiceImplTest {
 
     public Phrase phrase = Phrase.builder()
             .id("4d9d6b40-e8f4-47ab-a10c-a9d3791ff2b9")
-            .name("pumpkin")
+            .text("pumpkin")
             .build();
     public AudioRequest request = AudioRequest.builder()
             .userId("4d9d6b40-e8f4-47ab-a10c-a9d3791ff2b8")

@@ -140,7 +140,7 @@ INSERT INTO users (id, "name") VALUES
 #### 4. Insert Master Data for Phrases
 Next, insert the master data for phrases using the following SQL query:
 ```sql
-INSERT INTO phrases (id, "text") VALUES
+INSERT INTO phrases (id, "name") VALUES
     ('4d9d6b40-e8f4-47ab-a10c-a9d3791ff2b9', 'Phrase 1'),
     ('5d9d6b40-e8f4-47ab-a10c-a9d3791ff2b9', 'Phrase 2'),
     ('6d9d6b40-e8f4-47ab-a10c-a9d3791ff2b9', 'Phrase 3'),
@@ -175,3 +175,17 @@ The following assumptions have been made during the development of this project:
 
 5. **Authentication and Authorization**:
     - The application assumes that user authentication and authorization are handled externally (e.g., via OAuth2, JWT, or a similar mechanism
+
+### Running With Docker
+Since this application uses Google Cloud Platform (GCP) and requires GOOGLE_CREDENTIALS_JSON, the service account key cannot be committed to GitHub for security reasons. Instead, you must add the key locally and provide it as an environment variable when running the Docker container.
+
+Run the following command to start the application with Docker:
+```docker run -p 8080:8080 \
+-e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/audio-converter \
+-e SPRING_DATASOURCE_USERNAME=postgres \
+-e SPRING_DATASOURCE_PASSWORD=postgrespw \
+-e SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect \
+-e GOOGLE_APPLICATION_CREDENTIALS=/app/audio_converter_key.json \
+audio-converter
+```
+Make sure that the Google Cloud credentials JSON file is present on your local machine and properly mapped inside the container.

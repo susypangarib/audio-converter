@@ -26,6 +26,10 @@ public class GCPService {
 
     private final Storage storage;
 
+    public GCPService(Storage storage) {
+        this.storage = storage;
+    }
+
     public GCPService() throws IOException {
         storage = StorageOptions.newBuilder()
                 .setCredentials(GoogleCredentials.getApplicationDefault())
@@ -34,7 +38,6 @@ public class GCPService {
     }
 
     public String uploadFile(File file) throws IOException {
-        Storage storage = StorageOptions.getDefaultInstance().getService();
         String objectName = folderName.concat("/").concat(file.getName());
 
         BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, objectName).build();

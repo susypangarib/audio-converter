@@ -13,11 +13,11 @@ public class Phrase {
     @GeneratedValue(generator = "UUID")
     private String id;
     @Column(name = "text", nullable = false)
-    private String name;
+    private String text;
 
     @lombok.Builder(builderClassName = "Builder", toBuilder = true)
-    public Phrase(String id, String name) {
+    public Phrase(String id, String text) {
         this.id = id;
-        this.name = name;
+        this.text = text;
     }
 }

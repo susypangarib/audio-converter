@@ -38,7 +38,8 @@ public class AudioServiceImpl implements AudioService {
     @Autowired
     private GCPService gcpService;
 
-    private static final String FFMPEG_PATH = "/usr/local/bin/ffmpeg";
+    //private static final String FFMPEG_PATH = "/usr/local/bin/ffmpeg";
+    private static final String FFMPEG_PATH = "/usr/bin/ffmpeg";
 
     @Override
     public Boolean save(AudioRequest request) {
@@ -123,10 +124,10 @@ public class AudioServiceImpl implements AudioService {
         try {
             // Command to analyze the file using FFmpeg
             ProcessBuilder processBuilder = new ProcessBuilder(
-                    "/usr/local/bin/ffmpeg", // Path to FFmpeg
-                    "-i", file.getAbsolutePath(),         // Input file
-                    "-f", "null",           // No output file
-                    "-"                     // Redirect output to stdout
+                    FFMPEG_PATH,
+                    "-i", file.getAbsolutePath(),
+                    "-f", "null",
+                    "-"
             );
 
             // Start the process
@@ -141,7 +142,7 @@ public class AudioServiceImpl implements AudioService {
             }
 
             // Wait for the process to complete
-            int exitCode = process.waitFor();
+           process.waitFor();
             // Check if the output contains the M4A format
             String outputStr = output.toString().toLowerCase();
             boolean isM4aContainer = outputStr.contains("input #0, mov,mp4,m4a,3gp,3g2,mj2");
@@ -150,8 +151,10 @@ public class AudioServiceImpl implements AudioService {
             // Return true if both conditions are met
             return isM4aContainer && isAacCodec;
         } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-            return false; // If an error occurs, assume the file is not valid
+            log.error("FFmpeg reda failed {}", e.getMessage());
+
+            // If an error occurs, assume the file is not valid
+            return false;
         }
 
     }
