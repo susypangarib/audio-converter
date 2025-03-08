@@ -68,6 +68,9 @@ spring.web.resources.add-mappings=false
 gcp.storage.bucket-name=audio_converter_thp
 gcp.storage.folder-name=converted-audio
 google.credentials=${GOOGLE_CREDENTIALS_JSON}
+
+# ffmpeg properties
+ffmpeg.path=/usr/bin/ffmpeg
 ```
 
 ### Build & Run
